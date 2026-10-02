@@ -22,11 +22,29 @@ def reading(name, value, when=NOW, description=None):
         "reportTime": when.isoformat(),
         "name": name,
         "value": value,
+        "units": {
+            "air_temperature": "Celsius",
+            "cloud_cover_total": "%",
+            "wind_speed": "m/s",
+            "dewpoint_temperature": "Celsius",
+        }.get(name),
         "description": description,
     }}
 
 
 class ModelTests(unittest.TestCase):
+    def test_humidity_derived_from_measured_dewpoint(self):
+        rows = [reading("air_temperature", 20), reading("dewpoint_temperature", 10)]
+        result = model.parse_observations(rows, STATION, NOW, timedelta(hours=4))
+        self.assertGreater(result.humidity, 50)
+        self.assertLess(result.humidity, 60)
+
+    def test_wrong_unit_is_not_interpreted_as_celsius(self):
+        row = reading("air_temperature", 20)
+        row["properties"]["units"] = "Fahrenheit"
+        with self.assertRaises(model.DataContractError):
+            model.parse_observations([row], STATION, NOW, timedelta(hours=4))
+
     def test_zero_temperature_and_clouds_are_valid(self):
         rows = [reading("air_temperature", 0), reading("cloud_cover_total", 0)]
         result = model.parse_observations(rows, STATION, NOW, timedelta(hours=4))
