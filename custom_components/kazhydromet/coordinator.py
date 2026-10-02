@@ -2,12 +2,13 @@
 
 from dataclasses import dataclass
 import logging
+from datetime import datetime, timezone
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import APIError, KazhydrometAPI
-from .const import AUTO_STATION, UPDATE_INTERVAL
+from .const import AUTO_STATION, UPDATE_INTERVAL, WRF_REFRESH
 from .model import (
     DataContractError,
     ForecastData,
@@ -85,3 +86,26 @@ class KazhydrometCoordinator(DataUpdateCoordinator[WeatherSnapshot]):
         if observation is None:
             _LOGGER.warning("Using modeled WRF temperature; no fresh WIS2 observation")
         return WeatherSnapshot(observation, forecast)
+
+    async def _refresh_forecast(self) -> None:
+        """Refresh WRF only every three hours without blocking observations on errors."""
+        now = datetime.now(timezone.utc)
+        if (
+            self._last_wrf_fetch is not None
+            and now - self._last_wrf_fetch < WRF_REFRESH
+        ):
+            return
+        self._last_wrf_fetch = now
+        try:
+            raw = await self.api.wrf()
+            self.forecast = parse_wrf(
+                raw, self.hass.config.latitude, self.hass.config.longitude,
+                self.hass.config.time_zone, now
+            )
+        except (APIError, DataContractError) as exc:
+            _LOGGER.warning("Kazhydromet WRF forecast unavailable: %s", exc)
+            if (
+                self.forecast is not None
+                and now - self.forecast.generated_at > WRF_REFRESH * 12
+            ):
+                self.forecast = None
