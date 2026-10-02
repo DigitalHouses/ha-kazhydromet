@@ -5,7 +5,7 @@ from urllib.parse import quote, urljoin, urlsplit
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
 
-from .const import LOOKBACK, MAX_AGE, SYNOP_COLLECTION, WIS2_BASE, WRF_CACHE_INTERVAL, WRF_URL
+from .const import LOOKBACK, MAX_AGE, SYNOP_COLLECTION, WIS2_BASE, WRF_URL, WRF_CACHE_INTERVAL, WRF_URL
 from .model import (
     DataContractError,
     ForecastData,
@@ -95,6 +95,20 @@ class KazhydrometAPI:
         self._forecast_cache = forecast
         self._forecast_received = now
         return forecast
+
+    async def wrf(self) -> dict:
+        """Download latest official WRF forecast without third-party proxies."""
+        try:
+            async with self._session.get(
+                WRF_URL, timeout=ClientTimeout(total=65)
+            ) as response:
+                response.raise_for_status()
+                data = await response.json(content_type=None)
+        except (ClientError, TimeoutError, ValueError) as exc:
+            raise APIError(f"WRF request failed: {type(exc).__name__}") from exc
+        if not isinstance(data, dict):
+            raise APIError("WRF response is not a JSON object")
+        return data
 
     async def stations(self) -> list[Station]:
         """Return all available stations, including pagination."""
