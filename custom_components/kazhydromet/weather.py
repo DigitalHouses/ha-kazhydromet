@@ -5,6 +5,7 @@ from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 from homeassistant.components.weather import WeatherEntity, WeatherEntityFeature
+from homeassistant.core import callback, WeatherEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfLength, UnitOfPressure, UnitOfSpeed, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
@@ -25,6 +26,7 @@ async def async_setup_entry(
 class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntity):
     """Measured current weather; WRF only when observations are unavailable."""
 
+    _attr_supported_features = (WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY)
     _attr_has_entity_name = True
     _attr_name = None
     _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
@@ -180,3 +182,19 @@ class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntit
                 item["condition"] = condition(None, mean_clouds, False)
             result.append(item)
         return result
+
+    async def async_forecast_hourly(self) -> list[dict] | None:
+        """Return actual three-hour WRF steps without interpolation."""
+        value = self.coordinator.forecast
+        return value.hourly if value is not None else None
+
+    async def async_forecast_daily(self) -> list[dict] | None:
+        """Return local-calendar daily summaries of three-hour WRF points."""
+        value = self.coordinator.forecast
+        return value.daily if value is not None else None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Publish weather state and refresh subscribed forecast cards."""
+        super()._handle_coordinator_update()
+        self.hass.async_create_task(self.async_update_listeners({"hourly", "daily"}))
