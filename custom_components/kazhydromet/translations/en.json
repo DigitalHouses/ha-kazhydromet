@@ -27,7 +27,11 @@
         "name": "Observation station"
       },
       "source": {
-        "name": "Current data source"
+        "name": "Current data source",
+        "state": {
+          "wis2_observation": "WIS2 observations",
+          "wrf_model": "WRF model"
+        }
       },
       "model_run": {
         "name": "WRF model run"

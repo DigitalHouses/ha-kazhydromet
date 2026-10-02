@@ -26,7 +26,7 @@ class WeatherSnapshot:
     forecast: ForecastData | None
 
     def source(self) -> str:
-        return "WIS2 observation" if self.observation is not None else "WRF model"
+        return "wis2_observation" if self.observation is not None else "wrf_model"
 
 
 class KazhydrometCoordinator(DataUpdateCoordinator[WeatherSnapshot]):

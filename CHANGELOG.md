@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (pre-release)
+## 0.1.0 (2026-10-02)
 
 - Added HACS-ready native Home Assistant WeatherEntity and UI Config Flow.
 - Integrated official WIS2 SYNOP measurements and WRF forecasts.
@@ -10,3 +10,5 @@
 - Added WRF caching, Russian/English translations, upstream probes and offline tests.
 - Fixed rain being classified as sunny/clear-night, including daily conditions.
 - Fixed current dew-point access and documented why exact daily precipitation cannot be summed for UTC+5.
+- Added localized diagnostic entity names and translated WIS2/WRF source states.
+- Verified live HAOS Config Flow, native weather and daily/hourly forecasts.

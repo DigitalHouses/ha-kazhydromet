@@ -17,16 +17,11 @@ async def async_setup_entry(
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([
-        KazhydrometDiagnostic(coordinator, entry, "observed_at", "Observation time",
-                              "observed"),
-        KazhydrometDiagnostic(coordinator, entry, "station", "Observation station",
-                              "station"),
-        KazhydrometDiagnostic(coordinator, entry, "source", "Current data source",
-                              "source"),
-        KazhydrometDiagnostic(coordinator, entry, "model_run", "WRF model run",
-                              "model_run"),
-        KazhydrometDiagnostic(coordinator, entry, "forecast_location", "Forecast location",
-                              "forecast_location"),
+        KazhydrometDiagnostic(coordinator, entry, "observed_at", "observed"),
+        KazhydrometDiagnostic(coordinator, entry, "station", "station"),
+        KazhydrometDiagnostic(coordinator, entry, "source", "source"),
+        KazhydrometDiagnostic(coordinator, entry, "model_run", "model_run"),
+        KazhydrometDiagnostic(coordinator, entry, "forecast_location", "forecast_location"),
     ])
 
 
@@ -36,10 +31,10 @@ class KazhydrometDiagnostic(CoordinatorEntity[KazhydrometCoordinator], SensorEnt
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, coordinator, entry, suffix, name, kind) -> None:
+    def __init__(self, coordinator, entry, suffix: str, kind: str) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_{suffix}"
-        self._attr_name = name
+        self._attr_translation_key = suffix
         self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
         self.kind = kind
         if kind in ("observed", "model_run"):
