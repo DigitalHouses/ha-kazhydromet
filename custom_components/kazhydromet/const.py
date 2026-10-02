@@ -11,7 +11,7 @@ SYNOP_COLLECTION = (
 )
 UPDATE_INTERVAL = timedelta(minutes=30)
 LOOKBACK = timedelta(hours=12)
-MAX_AGE = timedelta(hours=9)
+MAX_AGE = timedelta(hours=5)
 WRF_URL = "https://www.kazhydromet.kz/vc/wrf/ftp2/api/forecast_latest.json"
 WRF_REFRESH = timedelta(hours=3)
 
