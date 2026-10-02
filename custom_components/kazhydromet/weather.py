@@ -5,11 +5,11 @@ from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 from homeassistant.components.weather import WeatherEntity, WeatherEntityFeature
-from homeassistant.core import callback, WeatherEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfLength, UnitOfPressure, UnitOfSpeed, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers import sun as sun_helper
 
 from .const import DOMAIN
 from .coordinator import KazhydrometCoordinator
@@ -26,7 +26,6 @@ async def async_setup_entry(
 class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntity):
     """Measured current weather; WRF only when observations are unavailable."""
 
-    _attr_supported_features = (WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY)
     _attr_has_entity_name = True
     _attr_name = None
     _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
@@ -72,7 +71,8 @@ class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntit
     def native_pressure(self) -> float | None:
         observed = self.coordinator.data.observation
         modeled = self._model_now
-        # Observed pressure is station pressure, not sea-level-adjusted pressure.
+        # WIS2 pressure is sea-level-adjusted, WRF is surface pressure. Use
+        # source diagnostics when interpreting pressure across source switches.
         return observed.pressure if observed is not None else (
             modeled.pressure if modeled is not None else None
         )
@@ -107,8 +107,7 @@ class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntit
 
     @property
     def condition(self) -> str | None:
-        sun = self.hass.states.get("sun.sun")
-        night = sun is not None and sun.state == "below_horizon"
+        night = not sun_helper.is_up(self.hass)
         observed = self.coordinator.data.observation
         description = observed.description if observed is not None else None
         return condition(description, self.cloud_coverage, night)
@@ -135,7 +134,7 @@ class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntit
             item = {
                 "datetime": point.at.isoformat(),
                 "native_temperature": point.temperature,
-                "condition": condition(None, point.cloud_coverage, False),
+                "condition": condition(None, point.cloud_coverage, not sun_helper.is_up(self.hass, point.at)),
             }
             optional = {
                 "humidity": point.humidity,
@@ -172,7 +171,15 @@ class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntit
                 "native_temperature": high,
                 "native_templow": low,
             }
-            if all(point.precipitation is not None for point in points):
+            # Each precipitation value covers a three-hour interval. Only
+            # sum when slot boundaries align with local midnight; otherwise
+            # a full calendar-day total is not defined without interpolation.
+            offset = points[0].at.astimezone(zone).utcoffset()
+            if (
+                offset is not None
+                and offset.total_seconds() % (3 * 3600) == 0
+                and all(point.precipitation is not None for point in points)
+            ):
                 item["native_precipitation"] = round(
                     sum(point.precipitation for point in points), 2
                 )
@@ -182,19 +189,3 @@ class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntit
                 item["condition"] = condition(None, mean_clouds, False)
             result.append(item)
         return result
-
-    async def async_forecast_hourly(self) -> list[dict] | None:
-        """Return actual three-hour WRF steps without interpolation."""
-        value = self.coordinator.forecast
-        return value.hourly if value is not None else None
-
-    async def async_forecast_daily(self) -> list[dict] | None:
-        """Return local-calendar daily summaries of three-hour WRF points."""
-        value = self.coordinator.forecast
-        return value.daily if value is not None else None
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Publish weather state and refresh subscribed forecast cards."""
-        super()._handle_coordinator_update()
-        self.hass.async_create_task(self.async_update_listeners({"hourly", "daily"}))
