@@ -1,0 +1,40 @@
+{
+  "title": "Kazhydromet",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Kazhydromet weather",
+        "description": "Current WIS2 observations with a WRF forecast. Choose automatic station selection or a specific station.",
+        "data": {
+          "station": "Station"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot contact the Kazhydromet station API."
+    },
+    "abort": {
+      "already_configured": "This station is already configured.",
+      "invalid_station": "The chosen station is not in the current catalogue."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "observed_at": {
+        "name": "Observation time"
+      },
+      "station": {
+        "name": "Observation station"
+      },
+      "source": {
+        "name": "Current data source"
+      },
+      "model_run": {
+        "name": "WRF model run"
+      },
+      "forecast_location": {
+        "name": "Forecast location"
+      }
+    }
+  }
+}
