@@ -34,8 +34,9 @@ class DiagnosticTranslationTests(unittest.TestCase):
             for node in ast.walk(tree)
             if isinstance(node, ast.Assign)
             for target in node.targets
-            if isinstance(target, ast.Attribute) and target.value.id == "self"
-            if isinstance(target.value, ast.Name)
+            if isinstance(target, ast.Attribute)
+            and isinstance(target.value, ast.Name)
+            and target.value.id == "self"
         }
         self.assertIn("_attr_translation_key", attributes)
         self.assertNotIn("_attr_name", attributes)
