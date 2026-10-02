@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'scripts/probe_upstream.py'
+      - 'scripts/live_smoke.py'
       - '.github/workflows/upstream-probe.yml'
   workflow_dispatch:
 
@@ -18,3 +19,5 @@ jobs:
           python-version: '3.13'
       - name: Inspect bounded schema of public WRF and WIS2 endpoints
         run: python scripts/probe_upstream.py
+      - name: Smoke-test WIS2 and WRF payloads
+        run: python scripts/live_smoke.py
