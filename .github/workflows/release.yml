@@ -2,12 +2,6 @@ name: Publish HACS Release
 
 on:
   workflow_dispatch:
-  # One-time bootstrap: trigger v0.1.0 release from this workflow change.
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/release.yml
 
 permissions:
   contents: write
