@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from math import asin, cos, isfinite, radians, sin, sqrt
+from math import asin, cos, exp, isfinite, radians, sin, sqrt
 
 
 class DataContractError(ValueError):
@@ -27,6 +27,7 @@ class Observation:
     observed_at: datetime
     temperature: float
     humidity: float | None = None
+    dew_point: float | None = None
     pressure: float | None = None
     wind_speed: float | None = None
     wind_direction: float | None = None
@@ -99,6 +100,14 @@ def distance_km(station: Station, latitude: float, longitude: float) -> float:
     return 12742 * asin(min(1, sqrt(a)))
 
 
+def _estimated_humidity(temperature: float, dew_point: float) -> float:
+    """Estimate RH from observed air and dew-point temperatures in Celsius."""
+    return round(min(100.0, max(0.0, 100.0 * exp(
+        (17.625 * dew_point / (243.04 + dew_point))
+        - (17.625 * temperature / (243.04 + temperature))
+    ))), 1)
+
+
 def parse_observations(
     features: list[dict], station: Station, now: datetime, max_age: timedelta
 ) -> Observation:
@@ -123,7 +132,17 @@ def parse_observations(
             continue
         record = reports.setdefault(report_time, {})
         measurement = numeric(props.get("value"))
-        if measurement is not None:
+        expected_units = {
+            "air_temperature": "Celsius",
+            "dewpoint_temperature": "Celsius",
+            "pressure_reduced_to_mean_sea_level": "hPa",
+            "wind_speed": "m/s",
+            "wind_direction": "deg",
+            "horizontal_visibility": "m",
+            "cloud_cover_total": "%",
+            "relative_humidity": "%",
+        }
+        if measurement is not None and props.get("units") == expected_units.get(name):
             record[name] = measurement
         elif name == "present_weather" and isinstance(props.get("description"), str):
             record["description"] = props["description"]
@@ -136,7 +155,14 @@ def parse_observations(
             station=station,
             observed_at=report_time,
             temperature=temperature,
-            humidity=record.get("relative_humidity"),
+            humidity=(
+                record.get("relative_humidity")
+                if record.get("relative_humidity") is not None
+                else _estimated_humidity(temperature, record["dewpoint_temperature"])
+                if record.get("dewpoint_temperature") is not None
+                else None
+            ),
+            dew_point=record.get("dewpoint_temperature"),
             pressure=record.get("pressure_reduced_to_mean_sea_level"),
             wind_speed=record.get("wind_speed"),
             wind_direction=record.get("wind_direction"),
