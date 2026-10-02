@@ -1,0 +1,20 @@
+name: Probe public weather data schema
+
+on:
+  push:
+    paths:
+      - 'scripts/probe_upstream.py'
+      - '.github/workflows/upstream-probe.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Inspect bounded schema of public WRF and WIS2 endpoints
+        run: python scripts/probe_upstream.py
