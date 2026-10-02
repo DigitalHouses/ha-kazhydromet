@@ -144,3 +144,35 @@ class WrfTests(unittest.TestCase):
         payload["meta"]["generated_at"] = "2026-09-29T00:00:00Z"
         with self.assertRaises(model.DataContractError):
             model.parse_wrf(payload, 43.25, 76.95, NOW)
+
+
+
+class WeatherConditionTests(unittest.TestCase):
+    """Regression tests from real HA WRF output on 2026-10-02."""
+
+    def point(self, precipitation, temperature=12, clouds=0):
+        return model.ForecastPoint(
+            NOW, temperature, precipitation, 50, 900, 2, clouds,
+        )
+
+    def test_rain_overrides_clouds_even_at_zero_cloud_cover(self):
+        self.assertEqual(model.forecast_condition(12.0, 8.2, 0, False), "rainy")
+        self.assertEqual(model.forecast_condition(2.7, 11.5, 23, True), "rainy")
+        self.assertEqual(model.forecast_condition(0.1, 6.0, 1, False), "rainy")
+
+    def test_dry_weather_still_uses_clouds_and_day_night(self):
+        self.assertEqual(model.forecast_condition(0, 10, 0, False), "sunny")
+        self.assertEqual(model.forecast_condition(0, 10, 0, True), "clear-night")
+        self.assertIsNone(model.forecast_condition(None, 10, None, True))
+
+    def test_snow_only_derived_from_subzero_air_temperature(self):
+        self.assertEqual(model.forecast_condition(1.0, -3, 10, False), "snowy")
+
+    def test_daily_rain_prioritized_over_mean_sunshine(self):
+        points = [self.point(0)] * 6
+        points.extend([self.point(2.7, clouds=23), self.point(12, clouds=33)])
+        self.assertEqual(model.daily_forecast_condition(points, 9), "rainy")
+
+    def test_dry_daily_preserves_cloud_based_condition(self):
+        points = [self.point(0) for _ in range(8)]
+        self.assertEqual(model.daily_forecast_condition(points, 0), "sunny")

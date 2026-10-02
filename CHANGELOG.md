@@ -8,3 +8,5 @@
 - Validated public WRF source units, timestamp schema and station coordinates.
 - Added station selection, source/freshness diagnostics and strict data contracts.
 - Added WRF caching, Russian/English translations, upstream probes and offline tests.
+- Fixed rain being classified as sunny/clear-night, including daily conditions.
+- Fixed current dew-point access and documented why exact daily precipitation cannot be summed for UTC+5.

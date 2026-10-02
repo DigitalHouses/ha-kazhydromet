@@ -13,7 +13,5 @@ UPDATE_INTERVAL = timedelta(minutes=30)
 LOOKBACK = timedelta(hours=12)
 MAX_AGE = timedelta(hours=5)
 WRF_URL = "https://www.kazhydromet.kz/vc/wrf/ftp2/api/forecast_latest.json"
-WRF_REFRESH = timedelta(hours=3)
 
-WRF_URL = "https://www.kazhydromet.kz/vc/wrf/ftp2/api/forecast_latest.json"
 WRF_CACHE_INTERVAL = timedelta(hours=3)

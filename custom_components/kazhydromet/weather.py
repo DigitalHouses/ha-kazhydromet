@@ -13,7 +13,7 @@ from homeassistant.helpers import sun as sun_helper
 
 from .const import DOMAIN
 from .coordinator import KazhydrometCoordinator
-from .model import ForecastPoint, condition
+from .model import ForecastPoint, condition, daily_forecast_condition, forecast_condition
 
 
 async def async_setup_entry(
@@ -61,7 +61,8 @@ class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntit
 
     @property
     def native_dew_point(self) -> float | None:
-        return self.coordinator.data.dew_point
+        observed = self.coordinator.data.observation
+        return observed.dew_point if observed is not None else None
 
     @property
     def humidity(self) -> float | None:
@@ -138,7 +139,10 @@ class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntit
             item = {
                 "datetime": point.at.isoformat(),
                 "native_temperature": point.temperature,
-                "condition": condition(None, point.cloud_coverage, not sun_helper.is_up(self.hass, point.at)),
+                "condition": forecast_condition(
+                    point.precipitation, point.temperature, point.cloud_coverage,
+                    not sun_helper.is_up(self.hass, point.at),
+                ),
             }
             optional = {
                 "humidity": point.humidity,
@@ -190,6 +194,8 @@ class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntit
             if all(point.cloud_coverage is not None for point in points):
                 mean_clouds = round(sum(point.cloud_coverage for point in points) / 8)
                 item["cloud_coverage"] = mean_clouds
-                item["condition"] = condition(None, mean_clouds, False)
+            item["condition"] = daily_forecast_condition(
+                points, item.get("cloud_coverage")
+            )
             result.append(item)
         return result

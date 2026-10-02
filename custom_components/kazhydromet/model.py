@@ -328,3 +328,45 @@ def parse_wrf(
     if points[0].at > now or points[-1].at <= now:
         raise DataContractError("WRF forecast has no coverage for current time")
     return ForecastData(selected, generated, tuple(points))
+
+
+
+def forecast_condition(
+    precipitation: float | None,
+    temperature: float,
+    cloud_coverage: float | None,
+    nighttime: bool,
+) -> str | None:
+    """Forecast icon: modeled precipitation has priority over cloud cover.
+
+    WRF provides liquid-equivalent precipitation but no phase flag.
+    The rain/snow split uses a simple air-temperature heuristic, not
+    an observed precipitation type.
+    """
+    if precipitation is not None and precipitation > 0:
+        return "snowy" if temperature <= 0 else "rainy"
+    return condition(None, cloud_coverage, nighttime)
+
+
+def daily_forecast_condition(
+    points: list[ForecastPoint], mean_cloud_coverage: float | None
+) -> str | None:
+    """Report precipitation if any complete-day forecast slot is wet.
+
+    Summarizing weather is qualitative; this does not estimate a daily
+    precipitation total across local-day boundaries.
+    """
+    wet = [
+        point
+        for point in points
+        if point.precipitation is not None and point.precipitation > 0
+    ]
+    if wet:
+        strongest = max(wet, key=lambda point: point.precipitation)
+        return forecast_condition(
+            strongest.precipitation,
+            strongest.temperature,
+            mean_cloud_coverage,
+            False,
+        )
+    return condition(None, mean_cloud_coverage, False)
