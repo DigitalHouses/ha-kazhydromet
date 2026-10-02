@@ -65,8 +65,11 @@ for name, url in SOURCES.items():
                 selected = data["forecasts"][str(nearby["rep_id"])]
                 print("FIRST ROWS:", json.dumps(selected[:3], ensure_ascii=False))
                 print("LAST ROW:", json.dumps(selected[-1], ensure_ascii=False))
+            if name == "stations":
+                print("STATION PROPERTIES:", json.dumps(data["features"][0].get("properties"), ensure_ascii=False)[:6000])
             if name == "synop_recent":
                 print("MATCHES:", data.get("numberMatched"), "ROWS:", data.get("numberReturned"))
+                print("OBS FIELDS:", json.dumps([(f["properties"]["name"], f["properties"]["units"], f["properties"]["reportTime"], f["properties"]["value"]) for f in data.get("features", [])], ensure_ascii=False)[:7500])
                 if data.get("features"):
                     print("RECENT EXAMPLE:", json.dumps(data["features"][:2], ensure_ascii=False)[:3000])
             print(json.dumps(structure(data), ensure_ascii=False, indent=2)[:12000])
