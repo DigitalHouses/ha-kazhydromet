@@ -60,6 +60,10 @@ class KazhydrometWeather(CoordinatorEntity[KazhydrometCoordinator], WeatherEntit
         )
 
     @property
+    def native_dew_point(self) -> float | None:
+        return self.coordinator.data.dew_point
+
+    @property
     def humidity(self) -> float | None:
         observed = self.coordinator.data.observation
         modeled = self._model_now
