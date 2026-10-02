@@ -172,3 +172,133 @@ def condition(description: str | None, cloud: float | None, nighttime: bool) -> 
     if cloud >= 25:
         return "partlycloudy"
     return "clear-night" if nighttime else "sunny"
+
+
+@dataclass(frozen=True)
+class ForecastPoint:
+    """One native three-hour forecast time slot."""
+
+    at: datetime
+    temperature: float
+    precipitation: float | None
+    humidity: float | None
+    pressure: float | None
+    wind_speed: float | None
+    cloud_coverage: int | None
+
+
+@dataclass(frozen=True)
+class ForecastData:
+    """WRF model location and one verified run."""
+
+    station: Station
+    generated_at: datetime
+    points: tuple[ForecastPoint, ...]
+
+    def current(self, now: datetime) -> ForecastPoint | None:
+        """Latest modeled time step no older than one model interval."""
+        previous = [p for p in self.points if p.at <= now]
+        point = previous[-1] if previous else None
+        if point is not None and now - point.at < timedelta(hours=3, minutes=15):
+            return point
+        return None
+
+
+def parse_wrf(
+    payload: dict, latitude: float, longitude: float, now: datetime
+) -> ForecastData:
+    """Validate official Kazhydromet WRF JSON and select nearest model point."""
+    if not isinstance(payload, dict):
+        raise DataContractError("WRF payload is not a JSON object")
+    meta = payload.get("meta")
+    stations = payload.get("stations")
+    forecast_map = payload.get("forecasts")
+    if (
+        not isinstance(meta, dict)
+        or not isinstance(stations, list)
+        or not isinstance(forecast_map, dict)
+    ):
+        raise DataContractError("WRF meta/stations/forecasts contract failed")
+
+    expected_units = {
+        "temp_blend": "C",
+        "wind_speed": "m/s",
+        "precip_mm": "mm",
+        "pressure_hpa": "hPa",
+        "humidity_rel": "%",
+        "cloud_fraction": "0-1",
+    }
+    units = meta.get("units")
+    if (
+        not isinstance(units, dict)
+        or any(units.get(key) != unit for key, unit in expected_units.items())
+        or meta.get("timestep_hours") != 3
+    ):
+        raise DataContractError("WRF time step or measurement units changed")
+    generated = timestamp(meta.get("generated_at"))
+    if not now - timedelta(hours=36) <= generated <= now + timedelta(minutes=20):
+        raise DataContractError("WRF run is stale or future-dated")
+
+    valid_stations: list[Station] = []
+    for item in stations:
+        if not isinstance(item, dict):
+            continue
+        identifier = item.get("rep_id")
+        name = item.get("name")
+        lat = numeric(item.get("lat"))
+        lon = numeric(item.get("lon"))
+        if (
+            (not isinstance(identifier, (int, str)))
+            or isinstance(identifier, bool)
+            or not isinstance(name, str)
+            or not name
+            or lat is None
+            or lon is None
+            or not -90 <= lat <= 90
+            or not -180 <= lon <= 180
+        ):
+            continue
+        if str(identifier) in forecast_map:
+            valid_stations.append(Station(str(identifier), name, lat, lon))
+    if not valid_stations:
+        raise DataContractError("WRF has no valid forecast station coordinates")
+    selected = min(valid_stations, key=lambda s: distance_km(s, latitude, longitude))
+    raw_points = forecast_map[selected.identifier]
+    if not isinstance(raw_points, list):
+        raise DataContractError("WRF forecast station is not a time series")
+
+    points: list[ForecastPoint] = []
+    for row in raw_points:
+        if not isinstance(row, dict):
+            raise DataContractError("Invalid WRF time series row")
+        at = timestamp(row.get("datetime"))
+        temp = numeric(row.get("temp_blend"))
+        if temp is None:
+            raise DataContractError("WRF time series missing temp_blend")
+        cloud = numeric(row.get("cloud_fraction"))
+        if cloud is not None and not 0 <= cloud <= 1:
+            raise DataContractError("Invalid WRF cloud_fraction")
+        humidity = numeric(row.get("humidity_rel"))
+        if humidity is not None and not 0 <= humidity <= 100:
+            raise DataContractError("Invalid WRF humidity_rel")
+        precipitation = numeric(row.get("precip_mm"))
+        if precipitation is not None and precipitation < 0:
+            raise DataContractError("Invalid WRF precip_mm")
+        points.append(
+            ForecastPoint(
+                at=at,
+                temperature=temp,
+                precipitation=precipitation,
+                humidity=humidity,
+                pressure=numeric(row.get("pressure_hpa")),
+                wind_speed=numeric(row.get("wind_speed")),
+                cloud_coverage=round(cloud * 100) if cloud is not None else None,
+            )
+        )
+    if len(points) < 2 or any(
+        b.at - a.at != timedelta(hours=3) for a, b in zip(points, points[1:])
+    ):
+        raise DataContractError("WRF time series must have contiguous 3-hour slots")
+    if points[0].at > now or points[-1].at <= now:
+        raise DataContractError("WRF forecast has no coverage for current time")
+    return ForecastData(selected, generated, tuple(points))

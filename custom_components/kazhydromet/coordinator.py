@@ -1,5 +1,6 @@
-"""Refresh and station selection, independent of UI and MQTT."""
+"""Data coordinator for official WIS2 observations and WRF forecasts."""
 
+from dataclasses import dataclass
 import logging
 
 from homeassistant.core import HomeAssistant
@@ -7,13 +8,29 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import APIError, KazhydrometAPI
 from .const import AUTO_STATION, UPDATE_INTERVAL
-from .model import DataContractError, Observation, Station, distance_km
+from .model import (
+    DataContractError,
+    ForecastData,
+    Observation,
+    distance_km,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class KazhydrometCoordinator(DataUpdateCoordinator[Observation]):
-    """Fetch one complete observation; never publish stale data as current."""
+@dataclass(frozen=True)
+class WeatherSnapshot:
+    """Independent observations and forecasts with explicit source provenance."""
+
+    observation: Observation | None
+    forecast: ForecastData | None
+
+    def source(self) -> str:
+        return "WIS2 observation" if self.observation is not None else "WRF model"
+
+
+class KazhydrometCoordinator(DataUpdateCoordinator[WeatherSnapshot]):
+    """Refresh from both sources without forging measurements on failure."""
 
     def __init__(
         self, hass: HomeAssistant, api: KazhydrometAPI, requested_station: str
@@ -23,9 +40,18 @@ class KazhydrometCoordinator(DataUpdateCoordinator[Observation]):
         )
         self.api = api
         self.requested_station = requested_station
-        self._stations: list[Station] | None = None
+        self._stations = None
 
-    async def _async_update_data(self) -> Observation:
+    async def _async_update_data(self) -> WeatherSnapshot:
+        forecast = None
+        try:
+            forecast = await self.api.forecast(
+                self.hass.config.latitude, self.hass.config.longitude
+            )
+        except APIError as exc:
+            _LOGGER.warning("WRF forecast unavailable: %s", exc)
+
+        observation = None
         try:
             if self._stations is None:
                 self._stations = await self.api.stations()
@@ -42,15 +68,20 @@ class KazhydrometCoordinator(DataUpdateCoordinator[Observation]):
                     station for station in self._stations
                     if station.identifier == self.requested_station
                 ]
-            if not candidates:
-                raise UpdateFailed("Configured WIGOS station not found")
             for station in candidates:
                 try:
-                    result = await self.api.observation(station)
+                    observation = await self.api.observation(station)
                 except DataContractError as exc:
-                    _LOGGER.debug("Station %s unavailable: %s", station.identifier, exc)
+                    _LOGGER.debug(
+                        "Station %s has no recent SYNOP data: %s", station.identifier, exc
+                    )
                     continue
-                return result
-            raise UpdateFailed("No recent observations for selected stations")
+                break
         except APIError as exc:
-            raise UpdateFailed(str(exc)) from exc
+            _LOGGER.warning("WIS2 observations unavailable: %s", exc)
+
+        if forecast is None and observation is None:
+            raise UpdateFailed("Neither WIS2 observations nor WRF forecast is available")
+        if observation is None:
+            _LOGGER.warning("Using modeled WRF temperature; no fresh WIS2 observation")
+        return WeatherSnapshot(observation, forecast)

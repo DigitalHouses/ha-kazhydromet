@@ -69,3 +69,60 @@ class ModelTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WrfTests(unittest.TestCase):
+    """Confirm actual WRF units, geographic selection and freshness rules."""
+
+    def payload(self):
+        return {
+            "meta": {
+                "generated_at": "2026-10-01T18:45:40Z",
+                "timestep_hours": 3,
+                "units": {
+                    "temp_blend": "C",
+                    "wind_speed": "m/s",
+                    "precip_mm": "mm",
+                    "pressure_hpa": "hPa",
+                    "humidity_rel": "%",
+                    "cloud_fraction": "0-1",
+                },
+            },
+            "stations": [
+                {"rep_id": 36870, "name": "ALMATY", "lat": 43.239364, "lon": 76.932951}
+            ],
+            "forecasts": {
+                "36870": [
+                    {"datetime": "2026-10-02T00:00:00Z", "temp_blend": 13.39,
+                     "wind_speed": 5.41, "precip_mm": 4.9, "pressure_hpa": 913.6,
+                     "humidity_rel": 80.0, "cloud_fraction": 0.24},
+                    {"datetime": "2026-10-02T03:00:00Z", "temp_blend": 15.92,
+                     "wind_speed": 0, "precip_mm": 0, "pressure_hpa": 914.0,
+                     "humidity_rel": 42, "cloud_fraction": 0},
+                    {"datetime": "2026-10-02T06:00:00Z", "temp_blend": 20.45,
+                     "wind_speed": 3.5, "precip_mm": 0.0, "pressure_hpa": 913.8,
+                     "humidity_rel": 27, "cloud_fraction": 0},
+                    {"datetime": "2026-10-02T09:00:00Z", "temp_blend": 19.0,
+                     "precip_mm": 0},
+                ],
+            },
+        }
+
+    def test_forecast_parses_verified_wrf_schema(self):
+        forecast = model.parse_wrf(self.payload(), 43.25, 76.95, NOW)
+        self.assertEqual(forecast.station.identifier, "36870")
+        self.assertEqual(forecast.points[0].cloud_coverage, 24)
+        self.assertEqual(forecast.points[1].precipitation, 0)
+        self.assertEqual(forecast.current(NOW).temperature, 20.45)
+
+    def test_invalid_cloud_fraction_is_not_silently_clamped(self):
+        payload = self.payload()
+        payload["forecasts"]["36870"][0]["cloud_fraction"] = 50
+        with self.assertRaises(model.DataContractError):
+            model.parse_wrf(payload, 43.25, 76.95, NOW)
+
+    def test_stale_run_is_rejected(self):
+        payload = self.payload()
+        payload["meta"]["generated_at"] = "2026-09-29T00:00:00Z"
+        with self.assertRaises(model.DataContractError):
+            model.parse_wrf(payload, 43.25, 76.95, NOW)

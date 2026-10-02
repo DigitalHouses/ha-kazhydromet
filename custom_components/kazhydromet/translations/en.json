@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Kazhydromet weather",
-        "description": "Use the nearest reporting station or select a specific station. Forecasts are not available in this initial observations-only release.",
+        "description": "Current WIS2 observations with a WRF forecast. Choose automatic station selection or a specific station.",
         "data": {
           "station": "Station"
         }
@@ -24,7 +24,16 @@
         "name": "Observation time"
       },
       "station": {
-        "name": "Reporting station"
+        "name": "Observation station"
+      },
+      "source": {
+        "name": "Current data source"
+      },
+      "model_run": {
+        "name": "WRF model run"
+      },
+      "forecast_location": {
+        "name": "Forecast location"
       }
     }
   }

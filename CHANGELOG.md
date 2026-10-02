@@ -2,7 +2,9 @@
 
 ## 0.1.0 (pre-release)
 
-- Added Home Assistant ConfigFlow and native weather entity from WIS2 SYNOP observations.
-- Added station auto-selection, diagnostic sensors and strict freshness validation.
-- Added HACS metadata, Russian/English UI translations and offline parser tests.
-- Forecast integration is intentionally deferred until the official WRF schema can be verified.
+- Added HACS-ready native Home Assistant WeatherEntity and UI Config Flow.
+- Integrated official WIS2 SYNOP measurements and WRF forecasts.
+- Added native 3-hour forecast points and complete-day summaries.
+- Validated public WRF source units, timestamp schema and station coordinates.
+- Added station selection, source/freshness diagnostics and strict data contracts.
+- Added WRF caching, Russian/English translations, upstream probes and offline tests.
