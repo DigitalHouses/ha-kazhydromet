@@ -1,0 +1,31 @@
+{
+  "title": "Kazhydromet",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Kazhydromet weather",
+        "description": "Use the nearest reporting station or select a specific station. Forecasts are not available in this initial observations-only release.",
+        "data": {
+          "station": "Station"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot contact the Kazhydromet station API."
+    },
+    "abort": {
+      "already_configured": "This station is already configured.",
+      "invalid_station": "The chosen station is not in the current catalogue."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "observed_at": {
+        "name": "Observation time"
+      },
+      "station": {
+        "name": "Reporting station"
+      }
+    }
+  }
+}
